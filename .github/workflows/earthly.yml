@@ -2,11 +2,11 @@ name: Docker
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
+    tags: ["v*.*.*"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log into registry 
+      - name: Log into registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
@@ -37,6 +37,7 @@ jobs:
           source: .
           push: true
           set: |
+            github-sponsor-webhook.tags=ghcr.io/xe/site/github-sponsor-webhook:latest
             patreon-saasproxy.tags=ghcr.io/xe/site/patreon-saasproxy:latest
             xesite.tags=ghcr.io/xe/site/bin:latest
 
@@ -47,46 +48,6 @@ jobs:
           source: .
           push: false
           set: |
+            github-sponsor-webhook.tags=ghcr.io/xe/site/github-sponsor-webhook:latest
             patreon-saasproxy.tags=ghcr.io/xe/site/patreon-saasproxy:latest
             xesite.tags=ghcr.io/xe/site/bin:latest
-
-  deploy:
-    name: "Deploy xesite"
-    needs: build
-    runs-on: alrest-xe-site
-    if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            src:
-              - 'cmd/**/*.go'
-              - 'internal/**/*.go'
-              - 'pb/*'
-              - 'pb/**/*'
-              - 'go.mod'
-              - 'go.sum'
-              - 'docker/*'
-              - "docker-bake.hcl"
-              - 'manifest/**/*.yaml'
-      - uses: azure/setup-kubectl@v4
-        if: steps.changes.outputs.src == 'true'
-      - name: Save Civo kubeconfig
-        if: steps.changes.outputs.src == 'true'
-        run: |
-          curl -sL https://civo.com/get | sudo sh
-          civo apikey add default $CIVO_TOKEN
-          civo apikey current default
-          civo kubernetes config --region phx1 aeacus --save --switch
-        env:
-          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
-      - name: "Deploy"
-        if: steps.changes.outputs.src == 'true'
-        run: |
-          kubectl apply -k manifest
-          kubectl rollout restart -n default deploy/xesite
